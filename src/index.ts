@@ -2,11 +2,12 @@ import os from 'os';
 import fs from 'fs';
 import path from 'path';
 import http, {
+  ServerOptions as HttpServerOptions,
   IncomingMessage,
   OutgoingHttpHeaders,
   ServerResponse,
 } from 'http';
-import https from 'https';
+import https, { ServerOptions as HttpsServerOptions } from 'https';
 import { URL } from 'url';
 import { context, BuildOptions, Plugin, BuildContext } from 'esbuild';
 import { getMimeType } from './mime';
@@ -40,6 +41,8 @@ export type ServerOptions = {
     localUrl: string,
     proxyUrl: string
   ) => IncomingMessage;
+  http?: HttpServerOptions;
+  https?: HttpsServerOptions;
 };
 
 function createProxyRewriter(
@@ -197,7 +200,9 @@ export function createServer(
     }
   }
 
-  const server = http.createServer(async (req, res) => {
+  const httpModule: any = serverOptions.https ? https : http;
+  const httpOptions: any = httpModule === https ? serverOptions.https : serverOptions.http;
+  const server = httpModule.createServer(httpOptions ?? {}, async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(`${serverUrl}${req.url}`);
 
     switch (url.pathname) {
@@ -233,7 +238,7 @@ export function createServer(
           }
         ),
         { end: true }
-      ).on('error', (err) => {
+      ).on('error', (err: Error) => {
         const msg = `Error connecting to the proxy via ${rewrite}`;
         console.error(msg, err);
         res.writeHead(502, { 'Content-Type': 'text/plain' }).end(msg);
